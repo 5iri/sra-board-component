@@ -396,59 +396,77 @@ esp_err_t display_mpu(float pitch, float roll)
   // Clear the screen
   lv_obj_clean(lv_scr_act());
 
-  // Printing pitch on oled
-  lv_obj_t *pitch_reading = lv_label_create(lv_scr_act());
-  char pitch_str[20];
-  sprintf(pitch_str, "Pitch : %0.2f", pitch);
-  lv_label_set_text(pitch_reading, pitch_str);
-  lv_obj_set_pos(pitch_reading, 0, 18);
-  lv_obj_set_size(pitch_reading, 96 , lv_obj_get_self_height(pitch_reading));
-
-  // Printing roll on oled
-  lv_obj_t *roll_reading = lv_label_create(lv_scr_act());
-  char roll_str[20];
-  sprintf(roll_str, "Roll : %0.2f", roll);
-  lv_label_set_text(roll_reading, roll_str);
-  lv_obj_set_pos(roll_reading, 0, 36);
-  lv_obj_set_size(roll_reading, 96 , lv_obj_get_self_height(roll_reading));
-
   // Create a scale-based meter for pitch readings (LVGL v9+)
   lv_obj_t *scale = lv_scale_create(lv_scr_act());
   if (scale)
   {
-    lv_obj_set_pos(scale, 64, 0);
-    lv_obj_set_size(scale, 64, 64);
+    /* Use a compact 180° gauge on the right side */
+    const int32_t gauge_size = 48;
+    const int32_t gauge_x = OLED_WIDTH - gauge_size - 15;
+    const int32_t gauge_y = (OLED_HEIGHT - gauge_size) / 2;
+    lv_obj_set_pos(scale, gauge_x, gauge_y);
+    lv_obj_set_size(scale, gauge_size, gauge_size);
+
     lv_scale_set_mode(scale, LV_SCALE_MODE_ROUND_INNER);
     lv_scale_set_range(scale, -90, 90);
     lv_scale_set_angle_range(scale, 180);
     lv_scale_set_rotation(scale, 270);
-    lv_scale_set_total_tick_count(scale, 19);
+
+    /* Fewer, clearer ticks: -90 .. 90 in 15° steps, majors every 45° */
+    lv_scale_set_total_tick_count(scale, 13);
     lv_scale_set_major_tick_every(scale, 3);
     lv_scale_set_label_show(scale, false);
     lv_scale_set_draw_ticks_on_top(scale, true);
 
-
+    /* Simple, high‑contrast styling for the tiny OLED */
     lv_obj_set_style_bg_opa(scale, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(scale, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(scale, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(scale, 2, LV_PART_MAIN);
+
+    lv_obj_set_style_length(scale, 6, LV_PART_ITEMS);          // minor ticks
+    lv_obj_set_style_length(scale, 10, LV_PART_INDICATOR);     // major ticks
+
     lv_obj_set_style_line_width(scale, 1, LV_PART_ITEMS);
     lv_obj_set_style_line_color(scale, lv_color_white(), LV_PART_ITEMS);
-    lv_obj_set_style_text_color(scale, lv_color_white(), LV_PART_ITEMS);
+    lv_obj_set_style_line_width(scale, 2, LV_PART_INDICATOR);
+    lv_obj_set_style_line_color(scale, lv_color_white(), LV_PART_INDICATOR);
+    lv_obj_set_style_text_color(scale, lv_color_white(), LV_PART_INDICATOR);
 
     lv_obj_t *needle = lv_line_create(scale);
     if (needle)
     {
       lv_obj_remove_style_all(needle);
-      lv_obj_set_size(needle, 64, 64);
-      lv_obj_set_style_line_width(needle, 2, LV_PART_MAIN);
+      lv_obj_set_size(needle, gauge_size, gauge_size);
+      lv_obj_set_style_line_width(needle, 3, LV_PART_MAIN);
       lv_obj_set_style_line_color(needle, lv_color_white(), LV_PART_MAIN);
       lv_obj_set_style_line_rounded(needle, true, LV_PART_MAIN);
 
       float clamped_pitch = fmaxf(fminf(pitch, 90.0f), -90.0f);
       int32_t rounded_pitch = (int32_t)roundf(clamped_pitch);
-      lv_scale_set_line_needle_value(scale, needle, -10, rounded_pitch);
+      lv_scale_set_line_needle_value(scale, needle, gauge_size, rounded_pitch);
     }
   }
+
+  // Printing pitch on oled
+  lv_obj_t *pitch_reading = lv_label_create(lv_scr_act());
+  char pitch_str[20];
+  snprintf(pitch_str, sizeof(pitch_str), "P:%5.2f", pitch);
+  lv_label_set_text(pitch_reading, pitch_str);
+  /* Place pitch text in a smaller area on the left */
+  const int32_t text_x = 2;
+  lv_obj_set_pos(pitch_reading, text_x, 18);
+  lv_obj_set_size(pitch_reading, OLED_WIDTH / 2, lv_obj_get_self_height(pitch_reading));
+  lv_obj_set_style_text_align(pitch_reading, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+
+  // Printing roll on oled
+  lv_obj_t *roll_reading = lv_label_create(lv_scr_act());
+  char roll_str[20];
+  snprintf(roll_str, sizeof(roll_str), "R:%5.2f", roll);
+  lv_label_set_text(roll_reading, roll_str);
+  /* Place roll text just below pitch text, same left column */
+  lv_obj_set_pos(roll_reading, text_x, 34);
+  lv_obj_set_size(roll_reading, OLED_WIDTH / 2, lv_obj_get_self_height(roll_reading));
+  lv_obj_set_style_text_align(roll_reading, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
 
   // Refresh Display
   lv_refr_now(NULL);
